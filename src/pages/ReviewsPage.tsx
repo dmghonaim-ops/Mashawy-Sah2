@@ -3,15 +3,45 @@ import { motion } from 'framer-motion';
 import { Star, CheckCircle } from 'lucide-react';
 import { useLanguageStore, t } from '@/stores/languageStore';
 import { useReviewsStore } from '@/stores/reviewsStore';
+import { useAuthStore } from '@/stores/authStore';
+import { useUIStore } from '@/stores/uiStore';
 import StarRating from '@/components/shared/StarRating';
 import ReviewCard from '@/components/shared/ReviewCard';
 
 export default function ReviewsPage() {
   const { language } = useLanguageStore();
-  const { getReviews } = useReviewsStore();
+  const { getReviews, addReview } = useReviewsStore();
+  const { user, isAuthenticated } = useAuthStore();
+  const { addToast } = useUIStore();
   const allReviews = getReviews().filter((r) => r.status === 'approved');
   const [sortBy, setSortBy] = useState('newest');
   const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [newRating, setNewRating] = useState(5);
+  const [newComment, setNewComment] = useState('');
+
+  const handleSubmitReview = () => {
+    if (!user) return;
+    if (!newComment.trim()) {
+      addToast({ type: 'error', message: t('برجاء كتابة تعليق', 'Please write a comment', language) });
+      return;
+    }
+    addReview({
+      id: `rev-${Date.now()}`,
+      customerId: user.id,
+      customerName: user.name,
+      rating: newRating,
+      comment: newComment.trim(),
+      status: 'pending',
+      isPinned: false,
+      isVerified: user.emailVerified ?? false,
+      createdAt: new Date().toISOString(),
+    });
+    addToast({ type: 'success', message: t('شكراً لك! سيظهر تقييمك بعد المراجعة', 'Thank you! Your review will appear after moderation', language) });
+    setNewComment('');
+    setNewRating(5);
+    setShowForm(false);
+  };
 
   const stats = useMemo(() => {
     const total = allReviews.length;
@@ -85,6 +115,48 @@ export default function ReviewsPage() {
           </div>
         </div>
       </section>
+
+      {/* Write a Review */}
+      <div className="container-custom pb-6">
+        {!isAuthenticated ? (
+          <div className="bg-[#111] border border-[#2a2a2a] rounded-2xl p-5 text-center">
+            <p className="text-sm text-[#a0a0a0]">
+              {t('سجل الدخول لكتابة تقييم', 'Log in to write a review', language)}
+            </p>
+          </div>
+        ) : !showForm ? (
+          <button onClick={() => setShowForm(true)} className="btn-primary h-11 px-5 text-sm">
+            {t('اكتب تقييمك', 'Write a Review', language)}
+          </button>
+        ) : (
+          <div className="bg-[#111] border border-[#2a2a2a] rounded-2xl p-6 space-y-4">
+            <h3 className="font-arabic text-lg font-semibold text-[#f5f5f5]">{t('اكتب تقييمك', 'Write a Review', language)}</h3>
+            <div className="flex items-center gap-2">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button key={star} onClick={() => setNewRating(star)} type="button">
+                  <Star size={26} className={star <= newRating ? 'fill-[#c8a45c] text-[#c8a45c]' : 'text-[#2a2a2a]'} />
+                </button>
+              ))}
+            </div>
+            <textarea
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              rows={3}
+              placeholder={t('شاركنا رأيك...', 'Share your thoughts...', language)}
+              className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 py-2 text-sm text-[#f5f5f5] resize-y focus:border-[#c8a45c] focus:outline-none"
+            />
+            {!user?.emailVerified && (
+              <p className="text-xs text-[#a0a0a0]">
+                {t('ملاحظة: لم يتم توثيق بريدك الإلكتروني بعد، لذا لن يظهر تقييمك كـ"موثّق"', "Note: your email isn't verified yet, so your review won't show as \"Verified\"", language)}
+              </p>
+            )}
+            <div className="flex gap-3">
+              <button onClick={handleSubmitReview} className="btn-primary flex-1 h-10 text-sm">{t('إرسال', 'Submit', language)}</button>
+              <button onClick={() => setShowForm(false)} className="btn-secondary flex-1 h-10 text-sm">{t('إلغاء', 'Cancel', language)}</button>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Filters */}
       <div className="container-custom pb-6">

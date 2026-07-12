@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   BarChart3, Package, Utensils, Tag, Users, Star, Percent, Settings,
   LogOut, Menu, X, Search, Plus, Edit, Trash2, Copy, Check, XCircle,
-  TrendingUp, TrendingDown,
+  TrendingUp, TrendingDown, Eye, Phone, Mail, MapPin,
 } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -16,7 +16,8 @@ import { useRestaurantStore } from '@/stores/restaurantStore';
 import { useOrdersStore } from '@/stores/ordersStore';
 import { useReviewsStore } from '@/stores/reviewsStore';
 import { useUIStore } from '@/stores/uiStore';
-import type { OrderStatus, MenuItem, Category, Coupon, ReviewStatus } from '@/types';
+import { supabase } from '@/lib/supabase';
+import type { OrderStatus, MenuItem, Category, Coupon, ReviewStatus, Order } from '@/types';
 
 const statusColors: Record<OrderStatus, string> = {
   new: '#2196f3', preparing: '#ff9800', ready: '#4caf50',
@@ -326,6 +327,7 @@ function OrdersTab() {
   const { addToast } = useUIStore();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('all');
+  const [viewingOrder, setViewingOrder] = useState<Order | null>(null);
   const orders = getOrders();
 
   const handleComplete = (id: string) => {
@@ -379,6 +381,7 @@ function OrdersTab() {
             <tr className="border-b border-[#2a2a2a]">
               <th className="text-start px-4 py-3 text-[#a0a0a0] font-medium">{t('الطلب', 'Order', language)}</th>
               <th className="text-start px-4 py-3 text-[#a0a0a0] font-medium">{t('العميل', 'Customer', language)}</th>
+              <th className="text-start px-4 py-3 text-[#a0a0a0] font-medium">{t('التواصل', 'Contact', language)}</th>
               <th className="text-start px-4 py-3 text-[#a0a0a0] font-medium">{t('المبلغ', 'Total', language)}</th>
               <th className="text-start px-4 py-3 text-[#a0a0a0] font-medium">{t('الحالة', 'Status', language)}</th>
               <th className="text-start px-4 py-3 text-[#a0a0a0] font-medium">{t('الإجراءات', 'Actions', language)}</th>
@@ -392,6 +395,12 @@ function OrdersTab() {
                   <p className="text-xs text-[#666]">{new Date(order.createdAt).toLocaleDateString()}</p>
                 </td>
                 <td className="px-4 py-3 text-[#a0a0a0]">{order.customerName}</td>
+                <td className="px-4 py-3 text-[#a0a0a0]">
+                  <div className="flex flex-col gap-0.5 text-xs">
+                    <span className="flex items-center gap-1"><Phone size={11} />{order.customerPhone}</span>
+                    {order.customerEmail && <span className="flex items-center gap-1 text-[#666]"><Mail size={11} />{order.customerEmail}</span>}
+                  </div>
+                </td>
                 <td className="px-4 py-3 text-[#c8a45c] font-medium">{order.total} EGP</td>
                 <td className="px-4 py-3">
                   <span className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ backgroundColor: `${statusColors[order.status]}20`, color: statusColors[order.status] }}>
@@ -400,6 +409,13 @@ function OrdersTab() {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setViewingOrder(order)}
+                      title={t('عرض التفاصيل', 'View details', language)}
+                      className="w-8 h-8 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a] text-[#a0a0a0] flex items-center justify-center hover:text-[#c8a45c] hover:border-[#c8a45c] transition-colors"
+                    >
+                      <Eye size={16} />
+                    </button>
                     <select
                       value={order.status}
                       onChange={(e) => updateOrderStatus(order.id, e.target.value as OrderStatus)}
@@ -423,6 +439,75 @@ function OrdersTab() {
           </tbody>
         </table>
       </div>
+
+      {/* Order Details Modal */}
+      {viewingOrder && (
+        <div className="fixed inset-0 z-[2000] bg-[rgba(0,0,0,0.7)] flex items-center justify-center p-4" onClick={() => setViewingOrder(null)}>
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-[#111] border border-[#2a2a2a] rounded-2xl p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-arabic text-lg font-semibold text-[#f5f5f5]">#{viewingOrder.id}</h3>
+              <span className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ backgroundColor: `${statusColors[viewingOrder.status]}20`, color: statusColors[viewingOrder.status] }}>
+                {t(statusLabelsAr[viewingOrder.status], statusLabelsEn[viewingOrder.status], language)}
+              </span>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-[#1a1a1a] rounded-xl p-4 space-y-2">
+                <h4 className="text-xs font-semibold text-[#c8a45c] mb-2">{t('معلومات العميل', 'Customer Information', language)}</h4>
+                <p className="text-sm text-[#f5f5f5]">{viewingOrder.customerName}</p>
+                <p className="text-xs text-[#a0a0a0] flex items-center gap-2"><Phone size={13} /> {viewingOrder.customerPhone}</p>
+                {viewingOrder.customerEmail && (
+                  <p className="text-xs text-[#a0a0a0] flex items-center gap-2"><Mail size={13} /> {viewingOrder.customerEmail}</p>
+                )}
+                {viewingOrder.address && (
+                  <p className="text-xs text-[#a0a0a0] flex items-start gap-2"><MapPin size={13} className="mt-0.5 shrink-0" /> {viewingOrder.address}</p>
+                )}
+                <p className="text-xs text-[#666]">
+                  {viewingOrder.deliveryType === 'delivery' ? t('توصيل', 'Delivery', language) : t('استلام من المطعم', 'Pickup', language)}
+                  {' · '}
+                  {viewingOrder.paymentMethod === 'cash' ? t('كاش', 'Cash', language) : viewingOrder.paymentMethod === 'card' ? t('بطاقة', 'Card', language) : t('محفظة', 'Wallet', language)}
+                </p>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-semibold text-[#c8a45c] mb-2">{t('الأصناف المطلوبة', 'Items Ordered', language)}</h4>
+                <div className="space-y-2">
+                  {viewingOrder.items.map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between text-sm bg-[#1a1a1a] rounded-lg px-3 py-2">
+                      <div>
+                        <span className="text-[#f5f5f5]">{item.quantity}x {t(item.menuItem.nameAr, item.menuItem.nameEn, language)}</span>
+                        {item.specialInstructions && <p className="text-xs text-[#666] mt-0.5">{item.specialInstructions}</p>}
+                      </div>
+                      <span className="text-[#c8a45c]">{item.totalPrice} EGP</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {viewingOrder.specialInstructions && (
+                <div className="bg-[#1a1a1a] rounded-xl p-4">
+                  <h4 className="text-xs font-semibold text-[#c8a45c] mb-1">{t('ملاحظات', 'Notes', language)}</h4>
+                  <p className="text-xs text-[#a0a0a0]">{viewingOrder.specialInstructions}</p>
+                </div>
+              )}
+
+              <div className="border-t border-[#2a2a2a] pt-3 space-y-1 text-sm">
+                <div className="flex justify-between text-[#a0a0a0]"><span>{t('المجموع الفرعي', 'Subtotal', language)}</span><span>{viewingOrder.subtotal} EGP</span></div>
+                <div className="flex justify-between text-[#a0a0a0]"><span>{t('رسوم التوصيل', 'Delivery Fee', language)}</span><span>{viewingOrder.deliveryFee} EGP</span></div>
+                {viewingOrder.discount > 0 && <div className="flex justify-between text-[#4caf50]"><span>{t('الخصم', 'Discount', language)}</span><span>-{viewingOrder.discount} EGP</span></div>}
+                <div className="flex justify-between text-[#f5f5f5] font-semibold pt-1"><span>{t('الإجمالي', 'Total', language)}</span><span className="text-[#c8a45c]">{viewingOrder.total} EGP</span></div>
+              </div>
+
+              <button onClick={() => setViewingOrder(null)} className="btn-secondary w-full h-10 text-sm">{t('إغلاق', 'Close', language)}</button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }
@@ -436,6 +521,7 @@ function MenuTab() {
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [editForm, setEditForm] = useState<Partial<MenuItem>>({});
   const [isAdding, setIsAdding] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const items = getMenuItems();
   const categories = getCategories();
 
@@ -467,6 +553,23 @@ function MenuTab() {
     }
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const ext = file.name.split('.').pop() || 'jpg';
+    const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const { error } = await supabase.storage.from('menu-images').upload(path, file);
+    if (error) {
+      addToast({ type: 'error', message: t('فشل رفع الصورة، تأكد من إنشاء bucket باسم menu-images', 'Image upload failed — make sure a public "menu-images" bucket exists in Supabase Storage', language) });
+      setUploading(false);
+      return;
+    }
+    const { data } = supabase.storage.from('menu-images').getPublicUrl(path);
+    setEditForm((f) => ({ ...f, image: data.publicUrl }));
+    setUploading(false);
+  };
+
   const handleCreate = () => {
     if (!editForm.nameAr || !editForm.nameEn || !editForm.categoryId) {
       addToast({ type: 'error', message: t('يرجى ملء الاسم والتصنيف', 'Please fill in name and category', language) });
@@ -482,6 +585,7 @@ function MenuTab() {
       image: editForm.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600',
       categoryId: editForm.categoryId || categories[0]?.id || '',
       preparationTime: editForm.preparationTime || 15,
+      calories: editForm.calories,
       isAvailable: editForm.isAvailable ?? true,
       isFeatured: editForm.isFeatured ?? false,
       isPopular: editForm.isPopular ?? false,
@@ -573,12 +677,33 @@ function MenuTab() {
                 <input type="number" value={editForm.price || 0} onChange={(e) => setEditForm({ ...editForm, price: Number(e.target.value) })} className="w-full h-10 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 text-sm text-[#f5f5f5]" />
               </div>
               <div>
+                <label className="block text-xs text-[#a0a0a0] mb-1">{t('صورة الصنف', 'Item Image', language)}</label>
+                <div className="flex items-center gap-3">
+                  {editForm.image && <img src={editForm.image} alt="" className="w-14 h-14 rounded-lg object-cover border border-[#2a2a2a]" />}
+                  <label className="flex-1 h-10 flex items-center justify-center gap-2 bg-[#1a1a1a] border border-dashed border-[#2a2a2a] rounded-xl text-xs text-[#a0a0a0] cursor-pointer hover:border-[#c8a45c] transition-colors">
+                    {uploading ? t('جارِ الرفع...', 'Uploading...', language) : t('اختر صورة من جهازك', 'Choose image from device', language)}
+                    <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={uploading} />
+                  </label>
+                </div>
+                <input value={editForm.image || ''} onChange={(e) => setEditForm({ ...editForm, image: e.target.value })} placeholder={t('أو ألصق رابط صورة', 'Or paste an image URL', language)} className="w-full h-9 mt-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 text-xs text-[#f5f5f5]" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-[#a0a0a0] mb-1">{t('وقت التحضير (دقيقة)', 'Prep Time (min)', language)}</label>
+                  <input type="number" value={editForm.preparationTime ?? 15} onChange={(e) => setEditForm({ ...editForm, preparationTime: Number(e.target.value) })} className="w-full h-10 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 text-sm text-[#f5f5f5]" />
+                </div>
+                <div>
+                  <label className="block text-xs text-[#a0a0a0] mb-1">{t('السعرات الحرارية', 'Calories', language)}</label>
+                  <input type="number" value={editForm.calories ?? ''} onChange={(e) => setEditForm({ ...editForm, calories: e.target.value === '' ? undefined : Number(e.target.value) })} className="w-full h-10 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 text-sm text-[#f5f5f5]" />
+                </div>
+              </div>
+              <div>
                 <label className="block text-xs text-[#a0a0a0] mb-1">{t('التصنيف', 'Category', language)}</label>
                 <select value={editForm.categoryId || ''} onChange={(e) => setEditForm({ ...editForm, categoryId: e.target.value })} className="w-full h-10 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 text-sm text-[#f5f5f5]">
                   {categories.map((c) => <option key={c.id} value={c.id}>{t(c.nameAr, c.nameEn, language)}</option>)}
                 </select>
               </div>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 flex-wrap">
                 <label className="flex items-center gap-2 text-sm text-[#a0a0a0]">
                   <input type="checkbox" checked={editForm.isAvailable || false} onChange={(e) => setEditForm({ ...editForm, isAvailable: e.target.checked })} className="w-4 h-4 rounded accent-[#c8a45c]" />
                   {t('متوفر', 'Available', language)}
@@ -590,6 +715,14 @@ function MenuTab() {
                 <label className="flex items-center gap-2 text-sm text-[#a0a0a0]">
                   <input type="checkbox" checked={editForm.isPopular || false} onChange={(e) => setEditForm({ ...editForm, isPopular: e.target.checked })} className="w-4 h-4 rounded accent-[#c8a45c]" />
                   {t('شعبي', 'Popular', language)}
+                </label>
+                <label className="flex items-center gap-2 text-sm text-[#a0a0a0]">
+                  <input type="checkbox" checked={editForm.isVegetarian || false} onChange={(e) => setEditForm({ ...editForm, isVegetarian: e.target.checked })} className="w-4 h-4 rounded accent-[#c8a45c]" />
+                  {t('نباتي', 'Vegetarian', language)}
+                </label>
+                <label className="flex items-center gap-2 text-sm text-[#a0a0a0]">
+                  <input type="checkbox" checked={editForm.isSpicy || false} onChange={(e) => setEditForm({ ...editForm, isSpicy: e.target.checked })} className="w-4 h-4 rounded accent-[#c8a45c]" />
+                  {t('حار', 'Spicy', language)}
                 </label>
               </div>
               <div className="flex gap-3 pt-2">
@@ -633,8 +766,25 @@ function MenuTab() {
                 <input type="number" value={editForm.price || 0} onChange={(e) => setEditForm({ ...editForm, price: Number(e.target.value) })} className="w-full h-10 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 text-sm text-[#f5f5f5]" />
               </div>
               <div>
-                <label className="block text-xs text-[#a0a0a0] mb-1">{t('رابط الصورة', 'Image URL', language)}</label>
-                <input value={editForm.image || ''} onChange={(e) => setEditForm({ ...editForm, image: e.target.value })} placeholder="https://..." className="w-full h-10 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 text-sm text-[#f5f5f5]" />
+                <label className="block text-xs text-[#a0a0a0] mb-1">{t('صورة الصنف', 'Item Image', language)}</label>
+                <div className="flex items-center gap-3">
+                  {editForm.image && <img src={editForm.image} alt="" className="w-14 h-14 rounded-lg object-cover border border-[#2a2a2a]" />}
+                  <label className="flex-1 h-10 flex items-center justify-center gap-2 bg-[#1a1a1a] border border-dashed border-[#2a2a2a] rounded-xl text-xs text-[#a0a0a0] cursor-pointer hover:border-[#c8a45c] transition-colors">
+                    {uploading ? t('جارِ الرفع...', 'Uploading...', language) : t('اختر صورة من جهازك', 'Choose image from device', language)}
+                    <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={uploading} />
+                  </label>
+                </div>
+                <input value={editForm.image || ''} onChange={(e) => setEditForm({ ...editForm, image: e.target.value })} placeholder={t('أو ألصق رابط صورة', 'Or paste an image URL', language)} className="w-full h-9 mt-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 text-xs text-[#f5f5f5]" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-[#a0a0a0] mb-1">{t('وقت التحضير (دقيقة)', 'Prep Time (min)', language)}</label>
+                  <input type="number" value={editForm.preparationTime ?? 15} onChange={(e) => setEditForm({ ...editForm, preparationTime: Number(e.target.value) })} className="w-full h-10 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 text-sm text-[#f5f5f5]" />
+                </div>
+                <div>
+                  <label className="block text-xs text-[#a0a0a0] mb-1">{t('السعرات الحرارية', 'Calories', language)}</label>
+                  <input type="number" value={editForm.calories ?? ''} onChange={(e) => setEditForm({ ...editForm, calories: e.target.value === '' ? undefined : Number(e.target.value) })} className="w-full h-10 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 text-sm text-[#f5f5f5]" />
+                </div>
               </div>
               <div>
                 <label className="block text-xs text-[#a0a0a0] mb-1">{t('التصنيف', 'Category', language)}</label>
@@ -655,6 +805,14 @@ function MenuTab() {
                   <input type="checkbox" checked={editForm.isPopular || false} onChange={(e) => setEditForm({ ...editForm, isPopular: e.target.checked })} className="w-4 h-4 rounded accent-[#c8a45c]" />
                   {t('شعبي', 'Popular', language)}
                 </label>
+                <label className="flex items-center gap-2 text-sm text-[#a0a0a0]">
+                  <input type="checkbox" checked={editForm.isVegetarian || false} onChange={(e) => setEditForm({ ...editForm, isVegetarian: e.target.checked })} className="w-4 h-4 rounded accent-[#c8a45c]" />
+                  {t('نباتي', 'Vegetarian', language)}
+                </label>
+                <label className="flex items-center gap-2 text-sm text-[#a0a0a0]">
+                  <input type="checkbox" checked={editForm.isSpicy || false} onChange={(e) => setEditForm({ ...editForm, isSpicy: e.target.checked })} className="w-4 h-4 rounded accent-[#c8a45c]" />
+                  {t('حار', 'Spicy', language)}
+                </label>
               </div>
               <div className="flex gap-3 pt-2">
                 <button onClick={handleCreate} className="btn-primary flex-1 h-10 text-sm">{t('إضافة', 'Add', language)}</button>
@@ -669,15 +827,39 @@ function MenuTab() {
 }
 function CategoriesTab() {
   const { language } = useLanguageStore();
-  const { getCategories, updateCategory, deleteCategory } = useRestaurantStore();
+  const { getCategories, addCategory, updateCategory, deleteCategory } = useRestaurantStore();
   const { addToast } = useUIStore();
   const [editing, setEditing] = useState<Category | null>(null);
   const [editForm, setEditForm] = useState<Partial<Category>>({});
+  const [isAdding, setIsAdding] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const categories = getCategories();
 
   const handleEdit = (cat: Category) => {
     setEditing(cat);
     setEditForm({ ...cat });
+  };
+
+  const handleAddNew = () => {
+    setEditForm({ nameAr: '', nameEn: '', image: '', descriptionAr: '', descriptionEn: '', isVisible: true, order: categories.length + 1 });
+    setIsAdding(true);
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const ext = file.name.split('.').pop() || 'jpg';
+    const path = `category-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const { error } = await supabase.storage.from('menu-images').upload(path, file);
+    if (error) {
+      addToast({ type: 'error', message: t('فشل رفع الصورة', 'Image upload failed', language) });
+      setUploading(false);
+      return;
+    }
+    const { data } = supabase.storage.from('menu-images').getPublicUrl(path);
+    setEditForm((f) => ({ ...f, image: data.publicUrl }));
+    setUploading(false);
   };
 
   const handleSave = () => {
@@ -688,8 +870,33 @@ function CategoriesTab() {
     }
   };
 
+  const handleCreate = () => {
+    if (!editForm.nameAr || !editForm.nameEn) {
+      addToast({ type: 'error', message: t('يرجى ملء الاسم', 'Please fill in the name', language) });
+      return;
+    }
+    const newCategory: Category = {
+      id: `cat-${Date.now()}`,
+      nameAr: editForm.nameAr || '',
+      nameEn: editForm.nameEn || '',
+      image: editForm.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600',
+      descriptionAr: editForm.descriptionAr || '',
+      descriptionEn: editForm.descriptionEn || '',
+      isVisible: editForm.isVisible ?? true,
+      order: editForm.order ?? categories.length + 1,
+    };
+    addCategory(newCategory);
+    addToast({ type: 'success', message: t('تمت الإضافة', 'Category added', language) });
+    setIsAdding(false);
+  };
+
   return (
     <div className="space-y-6">
+      <div className="flex justify-end">
+        <button onClick={handleAddNew} className="btn-primary h-10 px-4 text-sm flex items-center gap-2 whitespace-nowrap">
+          <Plus size={16} /> {t('إضافة تصنيف', 'Add Category', language)}
+        </button>
+      </div>
       <div className="bg-[#111] border border-[#2a2a2a] rounded-2xl overflow-hidden">
         <table className="w-full text-sm">
           <thead>
@@ -735,9 +942,47 @@ function CategoriesTab() {
             <div className="space-y-4">
               <div><label className="block text-xs text-[#a0a0a0] mb-1">{t('الاسم (عربي)', 'Name (AR)', language)}</label><input value={editForm.nameAr || ''} onChange={(e) => setEditForm({ ...editForm, nameAr: e.target.value })} className="w-full h-10 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 text-sm text-[#f5f5f5]" /></div>
               <div><label className="block text-xs text-[#a0a0a0] mb-1">{t('الاسم (English)', 'Name (EN)', language)}</label><input value={editForm.nameEn || ''} onChange={(e) => setEditForm({ ...editForm, nameEn: e.target.value })} className="w-full h-10 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 text-sm text-[#f5f5f5]" /></div>
+              <div>
+                <label className="block text-xs text-[#a0a0a0] mb-1">{t('صورة التصنيف', 'Category Image', language)}</label>
+                <div className="flex items-center gap-3">
+                  {editForm.image && <img src={editForm.image} alt="" className="w-14 h-14 rounded-lg object-cover border border-[#2a2a2a]" />}
+                  <label className="flex-1 h-10 flex items-center justify-center gap-2 bg-[#1a1a1a] border border-dashed border-[#2a2a2a] rounded-xl text-xs text-[#a0a0a0] cursor-pointer hover:border-[#c8a45c] transition-colors">
+                    {uploading ? t('جارِ الرفع...', 'Uploading...', language) : t('اختر صورة من جهازك', 'Choose image from device', language)}
+                    <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={uploading} />
+                  </label>
+                </div>
+                <input value={editForm.image || ''} onChange={(e) => setEditForm({ ...editForm, image: e.target.value })} placeholder={t('أو ألصق رابط صورة', 'Or paste an image URL', language)} className="w-full h-9 mt-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 text-xs text-[#f5f5f5]" />
+              </div>
               <div className="flex gap-3 pt-2">
                 <button onClick={handleSave} className="btn-primary flex-1 h-10 text-sm">{t('حفظ', 'Save', language)}</button>
                 <button onClick={() => setEditing(null)} className="btn-secondary flex-1 h-10 text-sm">{t('إلغاء', 'Cancel', language)}</button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {isAdding && (
+        <div className="fixed inset-0 z-[2000] bg-[rgba(0,0,0,0.7)] flex items-center justify-center p-4" onClick={() => setIsAdding(false)}>
+          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={(e) => e.stopPropagation()} className="bg-[#111] border border-[#2a2a2a] rounded-2xl p-6 w-full max-w-md">
+            <h3 className="font-arabic text-lg font-semibold text-[#f5f5f5] mb-4">{t('إضافة تصنيف جديد', 'Add New Category', language)}</h3>
+            <div className="space-y-4">
+              <div><label className="block text-xs text-[#a0a0a0] mb-1">{t('الاسم (عربي)', 'Name (AR)', language)} *</label><input value={editForm.nameAr || ''} onChange={(e) => setEditForm({ ...editForm, nameAr: e.target.value })} className="w-full h-10 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 text-sm text-[#f5f5f5]" /></div>
+              <div><label className="block text-xs text-[#a0a0a0] mb-1">{t('الاسم (English)', 'Name (EN)', language)} *</label><input value={editForm.nameEn || ''} onChange={(e) => setEditForm({ ...editForm, nameEn: e.target.value })} className="w-full h-10 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 text-sm text-[#f5f5f5]" /></div>
+              <div>
+                <label className="block text-xs text-[#a0a0a0] mb-1">{t('صورة التصنيف', 'Category Image', language)}</label>
+                <div className="flex items-center gap-3">
+                  {editForm.image && <img src={editForm.image} alt="" className="w-14 h-14 rounded-lg object-cover border border-[#2a2a2a]" />}
+                  <label className="flex-1 h-10 flex items-center justify-center gap-2 bg-[#1a1a1a] border border-dashed border-[#2a2a2a] rounded-xl text-xs text-[#a0a0a0] cursor-pointer hover:border-[#c8a45c] transition-colors">
+                    {uploading ? t('جارِ الرفع...', 'Uploading...', language) : t('اختر صورة من جهازك', 'Choose image from device', language)}
+                    <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={uploading} />
+                  </label>
+                </div>
+                <input value={editForm.image || ''} onChange={(e) => setEditForm({ ...editForm, image: e.target.value })} placeholder={t('أو ألصق رابط صورة', 'Or paste an image URL', language)} className="w-full h-9 mt-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 text-xs text-[#f5f5f5]" />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button onClick={handleCreate} className="btn-primary flex-1 h-10 text-sm">{t('إضافة', 'Add', language)}</button>
+                <button onClick={() => setIsAdding(false)} className="btn-secondary flex-1 h-10 text-sm">{t('إلغاء', 'Cancel', language)}</button>
               </div>
             </div>
           </motion.div>
@@ -789,6 +1034,7 @@ function CustomersTab() {
             <tr className="border-b border-[#2a2a2a]">
               <th className="text-start px-4 py-3 text-[#a0a0a0] font-medium">{t('العميل', 'Customer', language)}</th>
               <th className="text-start px-4 py-3 text-[#a0a0a0] font-medium">{t('الهاتف', 'Phone', language)}</th>
+              <th className="text-start px-4 py-3 text-[#a0a0a0] font-medium">{t('البريد الإلكتروني', 'Email', language)}</th>
               <th className="text-start px-4 py-3 text-[#a0a0a0] font-medium">{t('الصلاحية', 'Role', language)}</th>
               <th className="text-start px-4 py-3 text-[#a0a0a0] font-medium">{t('الطلبات', 'Orders', language)}</th>
               <th className="text-start px-4 py-3 text-[#a0a0a0] font-medium">{t('الحالة', 'Status', language)}</th>
@@ -808,6 +1054,18 @@ function CustomersTab() {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-[#a0a0a0]">{customer.phone}</td>
+                  <td className="px-4 py-3">
+                    {customer.email ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-[#a0a0a0]">{customer.email}</span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${customer.emailVerified ? 'bg-[rgba(76,175,80,0.15)] text-[#4caf50]' : 'bg-[rgba(244,67,54,0.15)] text-[#f44336]'}`}>
+                          {customer.emailVerified ? t('موثّق', 'Verified', language) : t('غير موثّق', 'Unverified', language)}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-[#666]">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${isAdmin ? 'bg-[rgba(200,164,92,0.15)] text-[#c8a45c]' : 'bg-[#1a1a1a] text-[#a0a0a0]'}`}>
                       {isAdmin ? t('مدير', 'Admin', language) : t('عميل', 'Customer', language)}

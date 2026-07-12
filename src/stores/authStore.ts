@@ -3,9 +3,21 @@ import { persist } from 'zustand/middleware';
 import type { User } from '@/types';
 import { supabase } from '@/lib/supabase';
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Egyptian mobile format: 01 followed by 0/1/2/5 then 8 more digits (11 digits total)
+const EGYPT_PHONE_REGEX = /^01[0125][0-9]{8}$/;
+
+export function isValidEmail(email: string): boolean {
+  return EMAIL_REGEX.test(email.trim());
+}
+export function isValidPhone(phone: string): boolean {
+  return EGYPT_PHONE_REGEX.test(phone.trim());
+}
+
 function fromRow(row: any): User {
   return {
     id: row.id, name: row.name, phone: row.phone, email: row.email ?? undefined,
+    emailVerified: row.email_verified ?? false,
     password: row.password, role: row.role, createdAt: row.created_at,
     isActive: row.is_active, addresses: row.addresses ?? undefined,
   };
@@ -13,10 +25,13 @@ function fromRow(row: any): User {
 function toRow(u: User) {
   return {
     id: u.id, name: u.name, phone: u.phone, email: u.email ?? null,
+    email_verified: u.emailVerified ?? false,
     password: u.password, role: u.role, created_at: u.createdAt,
     is_active: u.isActive, addresses: u.addresses ?? null,
   };
 }
+
+type RegisterResult = { success: true } | { success: false; reason: 'phone_taken' | 'invalid_email' | 'invalid_phone' | 'auth_error'; message?: string };
 
 interface AuthState {
   user: User | null;
@@ -25,7 +40,7 @@ interface AuthState {
   allUsers: User[];
   init: () => Promise<void>;
   login: (phone: string, password: string) => Promise<boolean>;
-  register: (name: string, phone: string, password: string) => Promise<boolean>;
+  register: (name: string, phone: string, email: string, password: string) => Promise<RegisterResult>;
   logout: () => void;
   updateProfile: (data: Partial<User>) => Promise<void>;
   getAllUsers: () => User[];
@@ -64,12 +79,25 @@ export const useAuthStore = create<AuthState>()(
         return true;
       },
 
-      register: async (name, phone, password) => {
+      register: async (name, phone, email, password) => {
+        if (!isValidEmail(email)) return { success: false, reason: 'invalid_email' };
+        if (!isValidPhone(phone)) return { success: false, reason: 'invalid_phone' };
+
         const { data: existing } = await supabase.from('users').select('id').eq('phone', phone).maybeSingle();
-        if (existing) return false;
+        if (existing) return { success: false, reason: 'phone_taken' };
+
+        // Sends a real confirmation email via Supabase Auth — the user must
+        // click the link in it before we mark their account as verified.
+        const { error: authError } = await supabase.auth.signUp({ email, password });
+        if (authError) {
+          return { success: false, reason: 'auth_error', message: authError.message };
+        }
+
         const newUser: User = {
           id: `u-${Date.now()}`,
-          name, phone, password,
+          name, phone, email,
+          emailVerified: false,
+          password,
           role: 'customer',
           createdAt: new Date().toISOString(),
           isActive: true,
@@ -77,10 +105,10 @@ export const useAuthStore = create<AuthState>()(
         const { error } = await supabase.from('users').insert(toRow(newUser));
         if (error) {
           console.error('register failed:', error.message);
-          return false;
+          return { success: false, reason: 'auth_error', message: error.message };
         }
         set({ user: newUser, isAuthenticated: true, isAdmin: false, allUsers: [...get().allUsers, newUser] });
-        return true;
+        return { success: true };
       },
 
       logout: () => {
@@ -124,3 +152,19 @@ export const useAuthStore = create<AuthState>()(
 );
 
 useAuthStore.getState().init();
+
+// When someone clicks the confirmation link in their email, Supabase
+// redirects them back here with a confirmed auth session. Catch that
+// and flip email_verified on their row in our own `users` table.
+supabase.auth.onAuthStateChange(async (event, session) => {
+  if (!session?.user?.email || !session.user.email_confirmed_at) return;
+  const email = session.user.email;
+  const { data } = await supabase.from('users').select('*').eq('email', email).maybeSingle();
+  if (data && !data.email_verified) {
+    await supabase.from('users').update({ email_verified: true }).eq('email', email);
+    const state = useAuthStore.getState();
+    const updatedList = state.allUsers.map((u) => (u.email === email ? { ...u, emailVerified: true } : u));
+    const updatedCurrent = state.user?.email === email ? { ...state.user, emailVerified: true } : state.user;
+    useAuthStore.setState({ allUsers: updatedList, user: updatedCurrent });
+  }
+});

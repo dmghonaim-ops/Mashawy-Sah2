@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { User, Phone, Lock, LogIn, UserPlus } from 'lucide-react';
+import { User, Phone, Lock, LogIn, UserPlus, Mail } from 'lucide-react';
 import { useLanguageStore, t } from '@/stores/languageStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -14,6 +14,7 @@ export default function LoginPage() {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
@@ -35,11 +36,18 @@ export default function LoginPage() {
         addToast({ type: 'error', message: t('كلمات المرور غير متطابقة', 'Passwords do not match', language) });
         return;
       }
-      if (await register(name, phone, password)) {
-        addToast({ type: 'success', message: t('تم إنشاء الحساب', 'Account created successfully', language) });
+      const result = await register(name, phone, email, password);
+      if (result.success) {
+        addToast({ type: 'success', message: t('تم إنشاء الحساب! تحقق من بريدك الإلكتروني لتأكيد الحساب', 'Account created! Check your email to confirm your address', language) });
         navigate('/');
-      } else {
+      } else if (result.reason === 'invalid_email') {
+        addToast({ type: 'error', message: t('برجاء إدخال بريد إلكتروني صحيح', 'Please enter a valid email address', language) });
+      } else if (result.reason === 'invalid_phone') {
+        addToast({ type: 'error', message: t('برجاء إدخال رقم هاتف مصري صحيح (01XXXXXXXXX)', 'Please enter a valid Egyptian phone number (01XXXXXXXXX)', language) });
+      } else if (result.reason === 'phone_taken') {
         addToast({ type: 'error', message: t('رقم الهاتف مستخدم', 'Phone number already in use', language) });
+      } else {
+        addToast({ type: 'error', message: result.message || t('حدث خطأ، حاول مرة أخرى', 'Something went wrong, please try again', language) });
       }
     }
   };
@@ -79,6 +87,21 @@ export default function LoginPage() {
                     onChange={(e) => setName(e.target.value)}
                     className="w-full h-12 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl pr-10 pl-4 text-sm text-[#f5f5f5] focus:border-[#c8a45c] focus:outline-none"
                     placeholder={t('اسمك الكامل', 'Your full name', language)}
+                  />
+                </div>
+              </div>
+            )}
+            {mode === 'register' && (
+              <div>
+                <label className="block text-xs text-[#a0a0a0] mb-2">{t('البريد الإلكتروني', 'Email', language)} *</label>
+                <div className="relative">
+                  <Mail size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#666]" />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full h-12 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl pr-10 pl-4 text-sm text-[#f5f5f5] focus:border-[#c8a45c] focus:outline-none"
+                    placeholder="you@example.com"
                   />
                 </div>
               </div>

@@ -7,6 +7,7 @@ import { useCartStore } from '@/stores/cartStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useOrdersStore } from '@/stores/ordersStore';
 import { useUIStore } from '@/stores/uiStore';
+import AddressAutocomplete from '@/components/shared/AddressAutocomplete';
 import type { Order, PaymentMethod, DeliveryType, OrderItem } from '@/types';
 
 export default function CheckoutPage() {
@@ -51,6 +52,7 @@ export default function CheckoutPage() {
       customerId: user?.id || 'guest',
       customerName: user?.name || phone,
       customerPhone: phone,
+      customerEmail: user?.email,
       items: orderItems,
       subtotal: s,
       deliveryFee: deliveryType === 'delivery' ? deliveryFee : 0,
@@ -173,12 +175,10 @@ export default function CheckoutPage() {
                         className="mt-4"
                       >
                         <label className="block text-xs text-[#a0a0a0] mb-2">{t('العنوان', 'Address', language)} *</label>
-                        <textarea
+                        <AddressAutocomplete
                           value={address}
-                          onChange={(e) => setAddress(e.target.value)}
-                          rows={3}
-                          className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-4 py-3 text-sm text-[#f5f5f5] focus:border-[#c8a45c] focus:outline-none resize-y"
-                          placeholder={t('أدخل عنوانك الكامل...', 'Enter your full address...', language)}
+                          onChange={setAddress}
+                          placeholder={t('ابدأ بكتابة عنوانك...', 'Start typing your address...', language)}
                         />
                       </motion.div>
                     )}

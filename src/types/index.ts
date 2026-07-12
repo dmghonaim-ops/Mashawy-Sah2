@@ -11,6 +11,7 @@ export interface User {
   name: string;
   phone: string;
   email?: string;
+  emailVerified?: boolean;
   password: string;
   role: UserRole;
   createdAt: string;
@@ -80,6 +81,7 @@ export interface Order {
   customerId: string;
   customerName: string;
   customerPhone: string;
+  customerEmail?: string;
   items: OrderItem[];
   subtotal: number;
   deliveryFee: number;
