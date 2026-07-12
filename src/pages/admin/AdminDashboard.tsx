@@ -322,7 +322,7 @@ function DashboardTab() {
 /* ========== Orders Tab ========== */
 function OrdersTab() {
   const { language } = useLanguageStore();
-  const { getOrders, updateOrderStatus, deleteOrder } = useOrdersStore();
+  const { getOrders, updateOrderStatus, deleteOrder, clearAllOrders } = useOrdersStore();
   const { addToast } = useUIStore();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('all');
@@ -331,6 +331,13 @@ function OrdersTab() {
   const handleComplete = (id: string) => {
     deleteOrder(id);
     addToast({ type: 'success', message: t('تم إنهاء الطلب', 'Order completed', language) });
+  };
+
+  const handleClearAll = () => {
+    if (window.confirm(t('هل أنت متأكد من حذف جميع الطلبات؟ لا يمكن التراجع.', 'Delete all orders? This cannot be undone.', language))) {
+      clearAllOrders();
+      addToast({ type: 'success', message: t('تم حذف جميع الطلبات', 'All orders cleared', language) });
+    }
   };
 
   const filtered = orders.filter((o) => {
@@ -361,6 +368,9 @@ function OrdersTab() {
             <option key={s} value={s}>{t(statusLabelsAr[s as OrderStatus], statusLabelsEn[s as OrderStatus], language)}</option>
           ))}
         </select>
+        <button onClick={handleClearAll} className="btn-secondary h-10 px-4 text-sm flex items-center gap-2 whitespace-nowrap text-[#f44336] border-[#f44336]">
+          <Trash2 size={16} /> {t('حذف الكل', 'Clear All', language)}
+        </button>
       </div>
 
       <div className="bg-[#111] border border-[#2a2a2a] rounded-2xl overflow-hidden overflow-x-auto">
