@@ -156,7 +156,7 @@ useAuthStore.getState().init();
 // When someone clicks the confirmation link in their email, Supabase
 // redirects them back here with a confirmed auth session. Catch that
 // and flip email_verified on their row in our own `users` table.
-supabase.auth.onAuthStateChange(async (event, session) => {
+supabase.auth.onAuthStateChange(async (_event, session) => {
   if (!session?.user?.email || !session.user.email_confirmed_at) return;
   const email = session.user.email;
   const { data } = await supabase.from('users').select('*').eq('email', email).maybeSingle();
