@@ -152,12 +152,6 @@ export default function LoginPage() {
             )}
           </p>
 
-          {/* Demo hint */}
-          <div className="mt-6 p-3 bg-[#1a1a1a] rounded-xl border border-[#2a2a2a]">
-            <p className="text-xs text-[#666] text-center">
-              {t('حساب المدير:', 'Admin account:', language)} amin123 / admin123
-            </p>
-          </div>
         </div>
       </motion.div>
     </div>
