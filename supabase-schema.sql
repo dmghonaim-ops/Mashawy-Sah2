@@ -199,3 +199,29 @@ insert into coupons (id, code, type, value, min_order, usage_limit, usage_count,
 
 -- Restaurant settings (single row)
 insert into settings (id, data) values (1, '{"nameAr":"مشاوي صح","nameEn":"Mashawy Sah","descriptionAr":"ألذ مشاوي في كفر الشيخ - نقدم أصنافاً متنوعة من المشاوي على الفحم","descriptionEn":"The Best Grills in Kafr El Sheikh - We offer a variety of charcoal grilled dishes","phone":"01068186660","email":"info@mashawysah.com","address":"بجوار مكتب بريد، مصير، كفر الشيخ، مصر","googleMapsUrl":"https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3416.7261!2d30.8382!3d31.1105","logo":"/images/hero-poster.jpg","heroBanner":"/images/hero-poster.jpg","primaryColor":"#c8a45c","secondaryColor":"#c62828","facebookUrl":"https://facebook.com/mashawysah","instagramUrl":"https://instagram.com/mashawysah","whatsappNumber":"01068186660","tiktokUrl":"https://tiktok.com/@mashawysah","deliveryFee":15,"taxRate":0,"minOrder":30,"deliveryRadius":15,"isOpen24Hours":true,"openingHours":[{"day":"saturday","dayAr":"السبت","open":"00:00","close":"23:59","isClosed":false},{"day":"sunday","dayAr":"الأحد","open":"00:00","close":"23:59","isClosed":false},{"day":"monday","dayAr":"الإثنين","open":"00:00","close":"23:59","isClosed":false},{"day":"tuesday","dayAr":"الثلاثاء","open":"00:00","close":"23:59","isClosed":false},{"day":"wednesday","dayAr":"الأربعاء","open":"00:00","close":"23:59","isClosed":false},{"day":"thursday","dayAr":"الخميس","open":"00:00","close":"23:59","isClosed":false},{"day":"friday","dayAr":"الجمعة","open":"00:00","close":"23:59","isClosed":false}]}'::jsonb);
+
+-- ============================================================
+-- Storage bucket for menu item images (uploaded from device in the
+-- admin dashboard). Run this too, then also verify in the dashboard:
+-- Storage → menu-images → should show as a Public bucket.
+-- ============================================================
+insert into storage.buckets (id, name, public)
+values ('menu-images', 'menu-images', true)
+on conflict (id) do nothing;
+
+create policy "public read menu-images" on storage.objects
+  for select using (bucket_id = 'menu-images');
+
+create policy "public upload menu-images" on storage.objects
+  for insert with check (bucket_id = 'menu-images');
+
+-- ============================================================
+-- Migration: email verification support
+-- Run this once (safe to run even if columns already exist).
+-- ============================================================
+alter table users add column if not exists email_verified boolean not null default false;
+
+-- ============================================================
+-- Migration: capture customer email on each order
+-- ============================================================
+alter table orders add column if not exists customer_email text;
