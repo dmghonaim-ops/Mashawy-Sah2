@@ -34,7 +34,7 @@ const sidebarItems = [
   { id: 'orders', labelAr: 'الطلبات', labelEn: 'Orders', icon: Package },
   { id: 'menu', labelAr: 'القائمة', labelEn: 'Menu', icon: Utensils },
   { id: 'categories', labelAr: 'التصنيفات', labelEn: 'Categories', icon: Tag },
-  { id: 'customers', labelAr: 'العملاء', labelEn: 'Customers', icon: Users },
+  { id: 'customers', labelAr: 'المستخدمون', labelEn: 'Users', icon: Users },
   { id: 'reviews', labelAr: 'التقييمات', labelEn: 'Reviews', icon: Star },
   { id: 'coupons', labelAr: 'كوبونات الخصم', labelEn: 'Coupons', icon: Percent },
   { id: 'settings', labelAr: 'إعدادات المطعم', labelEn: 'Settings', icon: Settings },
@@ -322,10 +322,16 @@ function DashboardTab() {
 /* ========== Orders Tab ========== */
 function OrdersTab() {
   const { language } = useLanguageStore();
-  const { getOrders, updateOrderStatus } = useOrdersStore();
+  const { getOrders, updateOrderStatus, deleteOrder } = useOrdersStore();
+  const { addToast } = useUIStore();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('all');
   const orders = getOrders();
+
+  const handleComplete = (id: string) => {
+    deleteOrder(id);
+    addToast({ type: 'success', message: t('تم إنهاء الطلب', 'Order completed', language) });
+  };
 
   const filtered = orders.filter((o) => {
     const matchesSearch = !search || o.id.toLowerCase().includes(search.toLowerCase()) || o.customerName.toLowerCase().includes(search.toLowerCase());
@@ -383,15 +389,24 @@ function OrdersTab() {
                   </span>
                 </td>
                 <td className="px-4 py-3">
-                  <select
-                    value={order.status}
-                    onChange={(e) => updateOrderStatus(order.id, e.target.value as OrderStatus)}
-                    className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-2 py-1 text-xs text-[#f5f5f5] focus:border-[#c8a45c] focus:outline-none"
-                  >
-                    {Object.keys(statusLabelsAr).map((s) => (
-                      <option key={s} value={s}>{t(statusLabelsAr[s as OrderStatus], statusLabelsEn[s as OrderStatus], language)}</option>
-                    ))}
-                  </select>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={order.status}
+                      onChange={(e) => updateOrderStatus(order.id, e.target.value as OrderStatus)}
+                      className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-2 py-1 text-xs text-[#f5f5f5] focus:border-[#c8a45c] focus:outline-none"
+                    >
+                      {Object.keys(statusLabelsAr).map((s) => (
+                        <option key={s} value={s}>{t(statusLabelsAr[s as OrderStatus], statusLabelsEn[s as OrderStatus], language)}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => handleComplete(order.id)}
+                      title={t('إنهاء وإخفاء الطلب', 'Complete and remove order', language)}
+                      className="w-8 h-8 rounded-lg bg-[rgba(76,175,80,0.15)] text-[#4caf50] flex items-center justify-center hover:bg-[#4caf50] hover:text-white transition-colors"
+                    >
+                      <Check size={16} />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -405,17 +420,29 @@ function OrdersTab() {
 /* ========== Menu Tab ========== */
 function MenuTab() {
   const { language } = useLanguageStore();
-  const { getMenuItems, getCategories, deleteMenuItem, duplicateMenuItem, updateMenuItem } = useRestaurantStore();
+  const { getMenuItems, getCategories, deleteMenuItem, duplicateMenuItem, updateMenuItem, addMenuItem } = useRestaurantStore();
   const { addToast } = useUIStore();
   const [search, setSearch] = useState('');
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [editForm, setEditForm] = useState<Partial<MenuItem>>({});
+  const [isAdding, setIsAdding] = useState(false);
   const items = getMenuItems();
   const categories = getCategories();
 
   const filtered = items.filter((i) =>
     !search || i.nameAr.toLowerCase().includes(search.toLowerCase()) || i.nameEn.toLowerCase().includes(search.toLowerCase())
   );
+
+  const emptyForm: Partial<MenuItem> = {
+    nameAr: '', nameEn: '', descriptionAr: '', descriptionEn: '', price: 0,
+    image: '', categoryId: categories[0]?.id || '', preparationTime: 15,
+    isAvailable: true, isFeatured: false, isPopular: false, isVegetarian: false, isSpicy: false,
+  };
+
+  const handleAddNew = () => {
+    setEditForm(emptyForm);
+    setIsAdding(true);
+  };
 
   const handleEdit = (item: MenuItem) => {
     setEditingItem(item);
@@ -430,6 +457,33 @@ function MenuTab() {
     }
   };
 
+  const handleCreate = () => {
+    if (!editForm.nameAr || !editForm.nameEn || !editForm.categoryId) {
+      addToast({ type: 'error', message: t('يرجى ملء الاسم والتصنيف', 'Please fill in name and category', language) });
+      return;
+    }
+    const newItem: MenuItem = {
+      id: `mi-${Date.now()}`,
+      nameAr: editForm.nameAr || '',
+      nameEn: editForm.nameEn || '',
+      descriptionAr: editForm.descriptionAr || '',
+      descriptionEn: editForm.descriptionEn || '',
+      price: editForm.price || 0,
+      image: editForm.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600',
+      categoryId: editForm.categoryId || categories[0]?.id || '',
+      preparationTime: editForm.preparationTime || 15,
+      isAvailable: editForm.isAvailable ?? true,
+      isFeatured: editForm.isFeatured ?? false,
+      isPopular: editForm.isPopular ?? false,
+      isVegetarian: editForm.isVegetarian ?? false,
+      isSpicy: editForm.isSpicy ?? false,
+      createdAt: new Date().toISOString().slice(0, 10),
+    };
+    addMenuItem(newItem);
+    addToast({ type: 'success', message: t('تمت الإضافة', 'Item added', language) });
+    setIsAdding(false);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row gap-4">
@@ -442,6 +496,9 @@ function MenuTab() {
             className="w-full h-10 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl pl-10 pr-4 text-sm text-[#f5f5f5] focus:border-[#c8a45c] focus:outline-none"
           />
         </div>
+        <button onClick={handleAddNew} className="btn-primary h-10 px-4 text-sm flex items-center gap-2 whitespace-nowrap">
+          <Plus size={16} /> {t('إضافة صنف', 'Add Item', language)}
+        </button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -533,11 +590,73 @@ function MenuTab() {
           </motion.div>
         </div>
       )}
+
+      {/* Add New Item Modal */}
+      {isAdding && (
+        <div className="fixed inset-0 z-[2000] bg-[rgba(0,0,0,0.7)] flex items-center justify-center p-4" onClick={() => setIsAdding(false)}>
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-[#111] border border-[#2a2a2a] rounded-2xl p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto"
+          >
+            <h3 className="font-arabic text-lg font-semibold text-[#f5f5f5] mb-4">{t('إضافة صنف جديد', 'Add New Item', language)}</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs text-[#a0a0a0] mb-1">{t('الاسم (عربي)', 'Name (AR)', language)} *</label>
+                <input value={editForm.nameAr || ''} onChange={(e) => setEditForm({ ...editForm, nameAr: e.target.value })} className="w-full h-10 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 text-sm text-[#f5f5f5]" />
+              </div>
+              <div>
+                <label className="block text-xs text-[#a0a0a0] mb-1">{t('الاسم (English)', 'Name (EN)', language)} *</label>
+                <input value={editForm.nameEn || ''} onChange={(e) => setEditForm({ ...editForm, nameEn: e.target.value })} className="w-full h-10 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 text-sm text-[#f5f5f5]" />
+              </div>
+              <div>
+                <label className="block text-xs text-[#a0a0a0] mb-1">{t('الوصف (عربي)', 'Description (AR)', language)}</label>
+                <textarea value={editForm.descriptionAr || ''} onChange={(e) => setEditForm({ ...editForm, descriptionAr: e.target.value })} rows={2} className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 py-2 text-sm text-[#f5f5f5] resize-y" />
+              </div>
+              <div>
+                <label className="block text-xs text-[#a0a0a0] mb-1">{t('الوصف (English)', 'Description (EN)', language)}</label>
+                <textarea value={editForm.descriptionEn || ''} onChange={(e) => setEditForm({ ...editForm, descriptionEn: e.target.value })} rows={2} className="w-full bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 py-2 text-sm text-[#f5f5f5] resize-y" />
+              </div>
+              <div>
+                <label className="block text-xs text-[#a0a0a0] mb-1">{t('السعر', 'Price', language)}</label>
+                <input type="number" value={editForm.price || 0} onChange={(e) => setEditForm({ ...editForm, price: Number(e.target.value) })} className="w-full h-10 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 text-sm text-[#f5f5f5]" />
+              </div>
+              <div>
+                <label className="block text-xs text-[#a0a0a0] mb-1">{t('رابط الصورة', 'Image URL', language)}</label>
+                <input value={editForm.image || ''} onChange={(e) => setEditForm({ ...editForm, image: e.target.value })} placeholder="https://..." className="w-full h-10 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 text-sm text-[#f5f5f5]" />
+              </div>
+              <div>
+                <label className="block text-xs text-[#a0a0a0] mb-1">{t('التصنيف', 'Category', language)}</label>
+                <select value={editForm.categoryId || ''} onChange={(e) => setEditForm({ ...editForm, categoryId: e.target.value })} className="w-full h-10 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-3 text-sm text-[#f5f5f5]">
+                  {categories.map((c) => <option key={c.id} value={c.id}>{t(c.nameAr, c.nameEn, language)}</option>)}
+                </select>
+              </div>
+              <div className="flex items-center gap-4 flex-wrap">
+                <label className="flex items-center gap-2 text-sm text-[#a0a0a0]">
+                  <input type="checkbox" checked={editForm.isAvailable ?? true} onChange={(e) => setEditForm({ ...editForm, isAvailable: e.target.checked })} className="w-4 h-4 rounded accent-[#c8a45c]" />
+                  {t('متوفر', 'Available', language)}
+                </label>
+                <label className="flex items-center gap-2 text-sm text-[#a0a0a0]">
+                  <input type="checkbox" checked={editForm.isFeatured || false} onChange={(e) => setEditForm({ ...editForm, isFeatured: e.target.checked })} className="w-4 h-4 rounded accent-[#c8a45c]" />
+                  {t('مميز', 'Featured', language)}
+                </label>
+                <label className="flex items-center gap-2 text-sm text-[#a0a0a0]">
+                  <input type="checkbox" checked={editForm.isPopular || false} onChange={(e) => setEditForm({ ...editForm, isPopular: e.target.checked })} className="w-4 h-4 rounded accent-[#c8a45c]" />
+                  {t('شعبي', 'Popular', language)}
+                </label>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button onClick={handleCreate} className="btn-primary flex-1 h-10 text-sm">{t('إضافة', 'Add', language)}</button>
+                <button onClick={() => setIsAdding(false)} className="btn-secondary flex-1 h-10 text-sm">{t('إلغاء', 'Cancel', language)}</button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }
-
-/* ========== Categories Tab ========== */
 function CategoriesTab() {
   const { language } = useLanguageStore();
   const { getCategories, updateCategory, deleteCategory } = useRestaurantStore();
@@ -621,8 +740,9 @@ function CategoriesTab() {
 /* ========== Customers Tab ========== */
 function CustomersTab() {
   const { language } = useLanguageStore();
-  const { getAllUsers, toggleUserActive } = useAuthStore();
+  const { getAllUsers, toggleUserActive, updateUser, user: currentUser } = useAuthStore();
   const { getOrders } = useOrdersStore();
+  const { addToast } = useUIStore();
   const [search, setSearch] = useState('');
   const customers = getAllUsers();
   const orders = getOrders();
@@ -630,6 +750,21 @@ function CustomersTab() {
   const filtered = customers.filter((c) =>
     !search || c.name.toLowerCase().includes(search.toLowerCase()) || c.phone.includes(search)
   );
+
+  const handleToggleAdmin = (customerId: string, currentRole: string) => {
+    if (customerId === currentUser?.id) {
+      addToast({ type: 'error', message: t('لا يمكنك تغيير صلاحيتك الخاصة', "You can't change your own role", language) });
+      return;
+    }
+    const newRole = currentRole === 'admin' ? 'customer' : 'admin';
+    updateUser(customerId, { role: newRole as 'admin' | 'customer' });
+    addToast({
+      type: 'success',
+      message: newRole === 'admin'
+        ? t('تم منح صلاحية المدير', 'Admin access granted', language)
+        : t('تم إلغاء صلاحية المدير', 'Admin access removed', language),
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -644,6 +779,7 @@ function CustomersTab() {
             <tr className="border-b border-[#2a2a2a]">
               <th className="text-start px-4 py-3 text-[#a0a0a0] font-medium">{t('العميل', 'Customer', language)}</th>
               <th className="text-start px-4 py-3 text-[#a0a0a0] font-medium">{t('الهاتف', 'Phone', language)}</th>
+              <th className="text-start px-4 py-3 text-[#a0a0a0] font-medium">{t('الصلاحية', 'Role', language)}</th>
               <th className="text-start px-4 py-3 text-[#a0a0a0] font-medium">{t('الطلبات', 'Orders', language)}</th>
               <th className="text-start px-4 py-3 text-[#a0a0a0] font-medium">{t('الحالة', 'Status', language)}</th>
               <th className="text-start px-4 py-3 text-[#a0a0a0] font-medium">{t('الإجراءات', 'Actions', language)}</th>
@@ -652,6 +788,7 @@ function CustomersTab() {
           <tbody>
             {filtered.map((customer) => {
               const orderCount = orders.filter((o) => o.customerId === customer.id).length;
+              const isAdmin = customer.role === 'admin';
               return (
                 <tr key={customer.id} className="border-b border-[#2a2a2a] hover:bg-[#1a1a1a] transition-colors">
                   <td className="px-4 py-3">
@@ -661,6 +798,11 @@ function CustomersTab() {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-[#a0a0a0]">{customer.phone}</td>
+                  <td className="px-4 py-3">
+                    <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${isAdmin ? 'bg-[rgba(200,164,92,0.15)] text-[#c8a45c]' : 'bg-[#1a1a1a] text-[#a0a0a0]'}`}>
+                      {isAdmin ? t('مدير', 'Admin', language) : t('عميل', 'Customer', language)}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-[#a0a0a0]">{orderCount}</td>
                   <td className="px-4 py-3">
                     <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${customer.isActive ? 'bg-[rgba(76,175,80,0.15)] text-[#4caf50]' : 'bg-[rgba(244,67,54,0.15)] text-[#f44336]'}`}>
@@ -668,9 +810,14 @@ function CustomersTab() {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <button onClick={() => toggleUserActive(customer.id)} className="text-xs text-[#a0a0a0] hover:text-[#c8a45c] transition-colors">
-                      {customer.isActive ? t('تعطيل', 'Disable', language) : t('تفعيل', 'Enable', language)}
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <button onClick={() => toggleUserActive(customer.id)} className="text-xs text-[#a0a0a0] hover:text-[#c8a45c] transition-colors">
+                        {customer.isActive ? t('تعطيل', 'Disable', language) : t('تفعيل', 'Enable', language)}
+                      </button>
+                      <button onClick={() => handleToggleAdmin(customer.id, customer.role)} className="text-xs text-[#a0a0a0] hover:text-[#c8a45c] transition-colors">
+                        {isAdmin ? t('إلغاء المدير', 'Remove Admin', language) : t('جعله مديراً', 'Make Admin', language)}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );

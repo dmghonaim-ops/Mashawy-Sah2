@@ -15,6 +15,7 @@ interface OrdersState {
   createOrder: (order: Order) => void;
   updateOrderStatus: (id: string, status: OrderStatus) => void;
   cancelOrder: (id: string) => void;
+  deleteOrder: (id: string) => void;
   getOrderById: (id: string) => Order | undefined;
 }
 
@@ -32,6 +33,10 @@ export const useOrdersStore = create<OrdersState>(() => ({
   },
   cancelOrder: (id) => {
     const orders = getOrders().map((o) => o.id === id ? { ...o, status: 'cancelled' as OrderStatus, updatedAt: new Date().toISOString() } : o);
+    saveOrders(orders);
+  },
+  deleteOrder: (id) => {
+    const orders = getOrders().filter((o) => o.id !== id);
     saveOrders(orders);
   },
   getOrderById: (id) => getOrders().find((o) => o.id === id),

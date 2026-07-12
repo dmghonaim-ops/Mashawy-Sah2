@@ -75,7 +75,7 @@ export const useAuthStore = create<AuthState>()(
       },
 
       getAllUsers: () => {
-        return getUsers().filter((u) => u.role === 'customer');
+        return getUsers();
       },
 
       toggleUserActive: (userId) => {
