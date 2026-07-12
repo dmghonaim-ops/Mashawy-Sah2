@@ -17,10 +17,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (mode === 'login') {
-      if (login(phone, password)) {
+      if (await login(phone, password)) {
         addToast({ type: 'success', message: t('تم تسجيل الدخول', 'Logged in successfully', language) });
         navigate('/');
       } else {
@@ -35,7 +35,7 @@ export default function LoginPage() {
         addToast({ type: 'error', message: t('كلمات المرور غير متطابقة', 'Passwords do not match', language) });
         return;
       }
-      if (register(name, phone, password)) {
+      if (await register(name, phone, password)) {
         addToast({ type: 'success', message: t('تم إنشاء الحساب', 'Account created successfully', language) });
         navigate('/');
       } else {
