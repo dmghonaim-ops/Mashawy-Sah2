@@ -8,7 +8,6 @@ import Navbar from '@/components/shared/Navbar';
 import Footer from '@/components/shared/Footer';
 import ToastContainer from '@/components/shared/Toast';
 import LoadingScreen from '@/components/shared/LoadingScreen';
-import AdminLogin from '@/pages/AdminLogin';
 
 // Lazy load pages
 const Home = lazy(() => import('@/pages/Home'));
@@ -39,14 +38,13 @@ function AppContent() {
       <ToastContainer />
       <Routes>
         {/* Admin Routes */}
-        <Route path="/admin/login" element={<AdminLogin />} />
         <Route
           path="/admin/*"
           element={
             isAdmin ? (
               <AdminDashboard />
             ) : (
-              <Navigate to="/admin/login" replace />
+              <Navigate to="/login" replace />
             )
           }
         />
